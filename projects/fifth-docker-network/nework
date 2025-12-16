@@ -1,0 +1,145 @@
+# 🐳 Docker Networking: Default Bridge vs User‑Defined Bridge
+
+This repository documents a **hands‑on experiment** to understand how Docker networking works in 
+practice — specifically the difference between the **default bridge network** and
+a **user‑defined bridge network**, including DNS behavior, IP routing, and dynamic network attachment.
+
+---
+
+## 🎯 What This Demo Covers
+
+* Default Docker bridge networking behavior
+* User‑defined bridge networking behavior
+* Container‑to‑container communication
+* Container‑to‑host communication
+* DNS resolution using **container names & IDs**
+* Attaching a running container to a new network
+
+---
+
+## 🧱 Environment
+
+* OS: Linux (Docker Engine)
+* Image: `ubuntu:latest`
+* Tools installed inside containers:
+
+  * `iproute2`
+  * `iputils-ping`
+
+---
+
+## 🚀 Step 1: Run Containers on Default Bridge Network
+
+```bash
+docker run -it --name default_nw_cont_1 ubuntu
+docker run -it --name default_nw_cont_2 ubuntu
+```
+
+By default, both containers are attached to Docker’s **default bridge network**.
+
+---
+
+## 🚀 Step 2: Create a User‑Defined Network and Containers
+
+```bash
+docker network create demo_1
+
+docker run --network=demo_1 -it --name demo_1_nw_cont_3 ubuntu
+docker run --network=demo_1 -it --name demo_1_nw_cont_4 ubuntu
+```
+
+This creates a **user‑defined bridge network** with built‑in DNS.
+
+---
+
+## 🔧 Step 3: Install Networking Tools Inside Each Container
+
+Run the following inside **each container**:
+
+```bash
+apt update
+apt install -y iproute2 iputils-ping
+```
+
+---
+
+## 🔍 Observations & Tests
+
+### 🔹 Default Bridge Network (`172.17.0.0/16`)
+
+On `default_nw_cont_1`:
+
+```bash
+ip addr
+ping 172.17.0.3              # ✅ Works (IP based)
+ping default_nw_cont_2       # ❌ Fails (no DNS)
+ping demo_1_nw_cont_3        # ❌ Fails (different network)
+```
+
+✔️ Containers can communicate **only using IP addresses**
+
+❌ Container name resolution is **not supported**
+
+---
+
+### 🔹 User‑Defined Bridge Network (`172.18.0.0/16`)
+
+On `demo_1_nw_cont_3`:
+
+```bash
+ping 172.18.0.3              # ✅ Works
+ping demo_1_nw_cont_4        # ✅ Works (DNS)
+ping 172.17.0.3              # ❌ Fails (isolated networks)
+```
+
+✔️ IP‑based communication works
+
+✔️ **DNS‑based communication using container name & ID works**
+
+✔️ Better isolation between networks
+
+---
+
+## 🔗 Step 4: Attach a Running Container to Another Network
+
+```bash
+docker network connect demo_1 default_nw_cont_1
+```
+
+Now `default_nw_cont_1` is connected to **both networks**.
+
+### ✅ Result
+
+On `default_nw_cont_1`:
+
+```bash
+ping demo_1_nw_cont_3        # ✅ Works
+ping demo_1_nw_cont_4        # ✅ Works
+ping 172.18.0.2              # ✅ Works
+```
+
+Docker dynamically assigns a **second network interface** and DNS entry.
+
+---
+
+## 🧠 Key Learnings
+
+| Feature                   | Default Bridge | User‑Defined Bridge |
+| ------------------------- | -------------- | ------------------- |
+| IP‑based communication    | ✅              | ✅                   |
+| Container name resolution | ❌              | ✅                   |
+| Built‑in DNS              | ❌              | ✅                   |
+| Network isolation         | ❌              | ✅                   |
+| Dynamic network connect   | ⚠️ Limited     | ✅                   |
+
+---
+
+## 🏆 Best Practices
+
+* ✅ Always use **user‑defined bridge networks** for real applications
+* ❌ Avoid relying on the default bridge for multi‑container setups
+* ✅ Use container names instead of IPs (more reliable)
+* ✅ Use `docker network connect` for advanced networking scenarios
+
+---
+
